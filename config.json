@@ -1,0 +1,14 @@
+{
+  "engine_name": "ELAYON_CRS",
+  "version": "v1_cloud",
+  "mode": "cloud",
+  "save_sessions": false,
+  "frame_ms": 100,
+  "silence_threshold": 0.018,
+  "short_pause_min_frames": 2,
+  "medium_pause_min_frames": 6,
+  "long_pause_min_frames": 12,
+  "moving_average_window": 16,
+  "peak_threshold": 0.05,
+  "auto_stop_silence_ms": 0
+}
