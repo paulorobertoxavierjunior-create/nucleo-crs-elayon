@@ -10,14 +10,7 @@ CONFIG_PATH = BASE_DIR / "config.json"
 
 app = Flask(__name__)
 
-CORS(
-    app,
-    origins=[
-        "https://paulorobertoxavierjunior-create.github.io",
-        "https://elayon.space",
-        "http://127.0.0.1:8787"
-    ]
-)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 
 def now_iso() -> str:
@@ -43,13 +36,13 @@ def default_config():
 
 def load_config():
     if CONFIG_PATH.exists():
-      try:
-          cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-          base = default_config()
-          base.update(cfg)
-          return base
-      except Exception:
-          pass
+        try:
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            base = default_config()
+            base.update(cfg)
+            return base
+        except Exception:
+            pass
     return default_config()
 
 
@@ -73,7 +66,7 @@ def classify_pause_profile(pause_count: int, mean_pause_ms: float) -> str:
         return "fragmentado"
     if pause_count >= 8 or mean_pause_ms >= 400:
         return "moderado"
-    return "contínuo"
+    return "continuo"
 
 
 def classify_temporal_flow(silence_pct: float, pause_count: int) -> str:
@@ -81,7 +74,7 @@ def classify_temporal_flow(silence_pct: float, pause_count: int) -> str:
         return "interrompido com retomadas"
     if pause_count >= 8:
         return "oscilante"
-    return "mais contínuo"
+    return "mais continuo"
 
 
 def build_mock_result(payload: dict) -> dict:
@@ -100,8 +93,8 @@ def build_mock_result(payload: dict) -> dict:
     temporal_flow = classify_temporal_flow(silence_pct, pause_count)
 
     summary = (
-        f"Sessão processada com sucesso. "
-        f"Silêncio {silence_profile}, pausas em perfil {pause_profile} e fluxo temporal {temporal_flow}."
+        f"Sessao processada com sucesso. "
+        f"Silencio {silence_profile}, pausas em perfil {pause_profile} e fluxo temporal {temporal_flow}."
     )
 
     user_report = {
@@ -139,9 +132,9 @@ def build_mock_result(payload: dict) -> dict:
     }
 
     ai_prompt = (
-        "Analise esta sessão do ELAYON CRS. "
-        "Considere silêncio, pausas, fluxo temporal e eventos. "
-        "Aponte hipóteses observacionais não clínicas e próximos ajustes do CRS."
+        "Analise esta sessao do ELAYON CRS. "
+        "Considere silencio, pausas, fluxo temporal e eventos. "
+        "Aponte hipoteses observacionais nao clinicas e proximos ajustes do CRS."
     )
 
     return {
@@ -150,6 +143,18 @@ def build_mock_result(payload: dict) -> dict:
         "internal_report": internal_report,
         "ai_prompt": ai_prompt
     }
+
+
+@app.get("/")
+def root():
+    return jsonify({
+        "ok": True,
+        "service": "ELAYON_CRS",
+        "message": "Backend do CRS ativo.",
+        "health": "/health",
+        "config": "/config",
+        "analyze": "/api/crs/analisar"
+    })
 
 
 @app.get("/health")
@@ -186,7 +191,6 @@ def analyze_crs():
     return jsonify(result)
 
 
-# rota espelho para compatibilidade com front antigo
 @app.post("/analyze")
 def analyze_legacy():
     payload = request.get_json(silent=True) or {}
@@ -194,18 +198,6 @@ def analyze_legacy():
     return jsonify(result)
 
 
-@app.get("/")
-def root():
-    return jsonify({
-        "ok": True,
-        "service": "ELAYON_CRS",
-        "message": "Backend do CRS ativo.",
-        "health": "/health",
-        "config": "/config",
-        "analyze": "/api/crs/analisar"
-    })
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port). 
+    app.run(host="0.0.0.0", port=port)
