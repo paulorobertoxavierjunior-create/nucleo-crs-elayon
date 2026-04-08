@@ -197,6 +197,31 @@ def analyze_legacy():
     result = build_mock_result(payload)
     return jsonify(result)
 
+@app.post("/api/image/analisar")
+def analyze_image():
+    payload = request.get_json(silent=True) or {}
+
+    context = payload.get("context", "")
+    image_base64 = payload.get("image_base64", "")
+    timestamp = payload.get("timestamp", "")
+    source_text = payload.get("source_text", "")
+
+    image_size = len(image_base64) if image_base64 else 0
+
+    return jsonify({
+        "ok": True,
+        "service": "ELAYON_IMAGE",
+        "version": load_config().get("version", "v1_cloud"),
+        "time": now_iso(),
+        "received": {
+            "context": context,
+            "timestamp": timestamp,
+            "source_text": source_text,
+            "image_size": image_size
+        },
+        "summary": "Imagem recebida com sucesso pelo endpoint dedicado."
+    })
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
