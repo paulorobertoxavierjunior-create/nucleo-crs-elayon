@@ -222,6 +222,39 @@ def analyze_image():
         "summary": "Imagem recebida com sucesso pelo endpoint dedicado."
     })
 
+@app.post("/api/image/ler")
+def read_image():
+    payload = request.get_json(silent=True) or {}
+
+    context = payload.get("context", "")
+    image_base64 = payload.get("image_base64", "")
+    timestamp = payload.get("timestamp", "")
+
+    image_size = len(image_base64) if image_base64 else 0
+
+    if "spectro" in context.lower() or "espectro" in context.lower():
+        summary = "Imagem recebida com padrão visual compatível com análise espectral."
+        hypothesis = "O contexto sugere leitura técnica de gráfico sonoro ou mapa espectral."
+        next_step = "Extrair elementos visuais relevantes e cruzar com o contexto fornecido."
+    else:
+        summary = "Imagem recebida com sucesso e contexto associado corretamente."
+        hypothesis = "O sistema identifica uma entrada visual pronta para leitura assistida."
+        next_step = "Avançar para interpretação multimodal da imagem com apoio de IA."
+
+    return jsonify({
+        "ok": True,
+        "service": "ELAYON_IMAGE_READER",
+        "version": load_config().get("version", "v1_cloud"),
+        "time": now_iso(),
+        "received": {
+            "context": context,
+            "timestamp": timestamp,
+            "image_size": image_size
+        },
+        "summary": summary,
+        "hypothesis": hypothesis,
+        "next_step": next_step
+    })
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
