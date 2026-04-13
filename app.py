@@ -27,3 +27,4 @@ def analisar_crs():
         "analise_sugestiva": alerta_estado,
         "sugestao_ia": f"O usuário apresentou {alerta_estado}. Ajustar interação para tom mais acolhedor."
     })
+ 
