@@ -5,256 +5,57 @@ import json
 from datetime import datetime
 import os
 
-BASE_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = BASE_DIR / "config.json"
-
 app = Flask(__name__)
-
+# CORS aberto para permitir que seu GitHub Pages acesse o núcleo
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# --- ESCALA EXPANDIDA ELAYON (Hawkins Adaptado) ---
+ESCALA_HAWKINS = [
+    {"freq": 20,  "estado": "Vergonha",     "cor": "#2c2c2c", "feedback": "Estado de contração severa. Observe a respiração."},
+    {"freq": 50,  "estado": "Apatia",       "cor": "#4f4f4f", "feedback": "Baixa vitalidade detectada. Requer ancoragem."},
+    {"freq": 100, "estado": "Medo",         "cor": "#8b0000", "feedback": "Oscilação por ansiedade. Estabilize o foco."},
+    {"freq": 200, "estado": "Coragem",      "cor": "#ffff00", "feedback": "Prontidão operacional detectada. Siga firme."},
+    {"freq": 350, "estado": "Aceitação",    "cor": "#32cd32", "feedback": "Harmonia e fluidez. Ótimo estado de aprendizado."},
+    {"freq": 500, "estado": "Amor/Reverência", "cor": "#ff69b4", "feedback": "Alta frequência. Conexão profunda com o processo."},
+    {"freq": 700, "estado": "Iluminação",   "cor": "#ffffff", "feedback": "Consciência plena. Presença absoluta."}
+]
 
-def now_iso() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+def classificar_presenca(silence_pct, pause_count):
+    # Lógica Elayon: Cruza silêncio e fragmentação
+    # Quanto mais silêncio e pausas picadas, menor a freq.
+    score = 1000 - (silence_pct * 12) - (pause_count * 8)
+    if score < 20: score = 20
+    
+    # Busca o nível mais próximo na escala
+    resultado = min(ESCALA_HAWKINS, key=lambda x: abs(x['freq'] - score))
+    return resultado
 
-
-def default_config():
-    return {
-        "engine_name": "ELAYON_CRS",
-        "version": "v1_cloud",
-        "mode": "cloud",
-        "save_sessions": False,
-        "frame_ms": 100,
-        "silence_threshold": 0.018,
-        "short_pause_min_frames": 2,
-        "medium_pause_min_frames": 6,
-        "long_pause_min_frames": 12,
-        "moving_average_window": 16,
-        "peak_threshold": 0.05,
-        "auto_stop_silence_ms": 0
-    }
-
-
-def load_config():
-    if CONFIG_PATH.exists():
-        try:
-            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            base = default_config()
-            base.update(cfg)
-            return base
-        except Exception:
-            pass
-    return default_config()
-
-
-def save_config(cfg: dict):
-    CONFIG_PATH.write_text(
-        json.dumps(cfg, ensure_ascii=False, indent=2),
-        encoding="utf-8"
-    )
-
-
-def classify_silence(silence_pct: float) -> str:
-    if silence_pct >= 45:
-        return "elevado"
-    if silence_pct >= 25:
-        return "moderado"
-    return "reduzido"
-
-
-def classify_pause_profile(pause_count: int, mean_pause_ms: float) -> str:
-    if pause_count >= 15 or mean_pause_ms >= 700:
-        return "fragmentado"
-    if pause_count >= 8 or mean_pause_ms >= 400:
-        return "moderado"
-    return "continuo"
-
-
-def classify_temporal_flow(silence_pct: float, pause_count: int) -> str:
-    if silence_pct >= 45 and pause_count >= 12:
-        return "interrompido com retomadas"
-    if pause_count >= 8:
-        return "oscilante"
-    return "mais continuo"
-
-
-def build_mock_result(payload: dict) -> dict:
-    context = payload.get("context", "")
-    transcript_raw = payload.get("transcript_raw", "")
-    duration_sec = float(payload.get("duration_sec", 0))
+@app.route("/api/crs/analisar", methods=['POST'])
+def analisar_crs():
+    payload = request.get_json(silent=True) or {}
+    
+    # Extração de métricas enviadas pelo Front-end
     silence_pct = float(payload.get("silence_pct", 0))
     pause_count = int(payload.get("pause_count", 0))
-    mean_pause_ms = float(payload.get("mean_pause_ms", 0))
-    source_text = payload.get("source_text", "")
-    timeline_events = payload.get("timeline_events", [])
-    uploaded_file_name = payload.get("uploaded_file_name", "")
-
-    silence_profile = classify_silence(silence_pct)
-    pause_profile = classify_pause_profile(pause_count, mean_pause_ms)
-    temporal_flow = classify_temporal_flow(silence_pct, pause_count)
-
-    summary = (
-        f"Sessao processada com sucesso. "
-        f"Silencio {silence_profile}, pausas em perfil {pause_profile} e fluxo temporal {temporal_flow}."
-    )
-
-    user_report = {
-        "session_time": now_iso(),
-        "context": context,
-        "summary": summary,
-        "revised_text": transcript_raw.strip(),
-        "metrics_visible": {
-            "duration_sec": duration_sec,
-            "silence_pct": silence_pct,
-            "pause_count": pause_count,
-            "mean_pause_ms": mean_pause_ms
-        }
-    }
-
-    internal_report = {
-        "engine": "ELAYON_CRS",
-        "version": load_config().get("version", "v1_cloud"),
-        "diagnostic": {
-            "temporal_flow": temporal_flow,
-            "silence_profile": silence_profile,
-            "pause_profile": pause_profile
-        },
-        "raw_metrics": {
-            "duration_sec": duration_sec,
-            "silence_pct": silence_pct,
-            "pause_count": pause_count,
-            "mean_pause_ms": mean_pause_ms
-        },
-        "events": timeline_events,
-        "input_meta": {
-            "source_text_present": bool(source_text),
-            "uploaded_file_name": uploaded_file_name
-        }
-    }
-
-    ai_prompt = (
-        "Analise esta sessao do ELAYON CRS. "
-        "Considere silencio, pausas, fluxo temporal e eventos. "
-        "Aponte hipoteses observacionais nao clinicas e proximos ajustes do CRS."
-    )
-
-    return {
-        "ok": True,
-        "user_report": user_report,
-        "internal_report": internal_report,
-        "ai_prompt": ai_prompt
-    }
-
-
-@app.get("/")
-def root():
+    contexto = payload.get("context", "Geral")
+    
+    # Processamento Heurístico
+    diagnostico = classificar_presenca(silence_pct, pause_count)
+    
     return jsonify({
         "ok": True,
-        "service": "ELAYON_CRS",
-        "message": "Backend do CRS ativo.",
-        "health": "/health",
-        "config": "/config",
-        "analyze": "/api/crs/analisar"
+        "timestamp": datetime.now().isoformat(),
+        "diagnostico": diagnostico,
+        "metrics_received": {
+            "silence_pct": silence_pct,
+            "pause_count": pause_count
+        },
+        "heuristica": f"O operador apresenta fluxo {diagnostico['estado']}. {diagnostico['feedback']}"
     })
 
-
-@app.get("/health")
+@app.route("/health", methods=['GET'])
 def health():
-    return jsonify({
-        "ok": True,
-        "service": "ELAYON_CRS",
-        "version": load_config().get("version", "v1_cloud"),
-        "time": now_iso()
-    })
-
-
-@app.get("/config")
-def get_config():
-    return jsonify(load_config())
-
-
-@app.post("/config")
-def post_config():
-    incoming = request.get_json(silent=True) or {}
-    base = default_config()
-    base.update(incoming)
-    save_config(base)
-    return jsonify({
-        "ok": True,
-        "config": base
-    })
-
-
-@app.post("/api/crs/analisar")
-def analyze_crs():
-    payload = request.get_json(silent=True) or {}
-    result = build_mock_result(payload)
-    return jsonify(result)
-
-
-@app.post("/analyze")
-def analyze_legacy():
-    payload = request.get_json(silent=True) or {}
-    result = build_mock_result(payload)
-    return jsonify(result)
-
-@app.post("/api/image/analisar")
-def analyze_image():
-    payload = request.get_json(silent=True) or {}
-
-    context = payload.get("context", "")
-    image_base64 = payload.get("image_base64", "")
-    timestamp = payload.get("timestamp", "")
-    source_text = payload.get("source_text", "")
-
-    image_size = len(image_base64) if image_base64 else 0
-
-    return jsonify({
-        "ok": True,
-        "service": "ELAYON_IMAGE",
-        "version": load_config().get("version", "v1_cloud"),
-        "time": now_iso(),
-        "received": {
-            "context": context,
-            "timestamp": timestamp,
-            "source_text": source_text,
-            "image_size": image_size
-        },
-        "summary": "Imagem recebida com sucesso pelo endpoint dedicado."
-    })
-
-@app.post("/api/image/ler")
-def read_image():
-    payload = request.get_json(silent=True) or {}
-
-    context = payload.get("context", "")
-    image_base64 = payload.get("image_base64", "")
-    timestamp = payload.get("timestamp", "")
-
-    image_size = len(image_base64) if image_base64 else 0
-
-    if "spectro" in context.lower() or "espectro" in context.lower():
-        summary = "Imagem recebida com padrão visual compatível com análise espectral."
-        hypothesis = "O contexto sugere leitura técnica de gráfico sonoro ou mapa espectral."
-        next_step = "Extrair elementos visuais relevantes e cruzar com o contexto fornecido."
-    else:
-        summary = "Imagem recebida com sucesso e contexto associado corretamente."
-        hypothesis = "O sistema identifica uma entrada visual pronta para leitura assistida."
-        next_step = "Avançar para interpretação multimodal da imagem com apoio de IA."
-
-    return jsonify({
-        "ok": True,
-        "service": "ELAYON_IMAGE_READER",
-        "version": load_config().get("version", "v1_cloud"),
-        "time": now_iso(),
-        "received": {
-            "context": context,
-            "timestamp": timestamp,
-            "image_size": image_size
-        },
-        "summary": summary,
-        "hypothesis": hypothesis,
-        "next_step": next_step
-    })
+    return jsonify({"status": "operacional", "engine": "ELAYON_CRS_NUCLEO"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
