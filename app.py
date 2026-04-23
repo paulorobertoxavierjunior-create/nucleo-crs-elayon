@@ -7,8 +7,10 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-SUPABASE_URL = os.getenv("https://eudcjihffrfmhzmfwtlg.supabase.co", "").rstrip("/")
-SUPABASE_ANON_KEY = os.getenv("sb_publishable_eFXj7d8dOSREvEJbZ0xQJg_NgPCI8Nz", "")
+# No código fica assim (limpo):
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+
 
 def clamp(value, low, high):
     return max(low, min(high, value))
