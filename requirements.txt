@@ -1,6 +1,5 @@
 Flask==3.0.2
 gunicorn==21.2.0
-requests==2.31.5
-supabase==2.3.0
-python-dotenv==1.0.1
+requests==2.31.0
 numpy==1.26.4
+scipy==1.12.0
